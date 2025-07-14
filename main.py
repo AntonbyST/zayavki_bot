@@ -75,7 +75,7 @@ def fill_excel(project, object_name, positions, user_full_name, telegram_id_or_u
     ws['E16'] = user_full_name
     ws['E17'] = telegram_id_or_username
 
-    logger.info(f"Writing to Excel: G2={today}, G3={project}, G4={object_name}, G5={user_full_name}, G6={telegram_id_or_username}")
+    logger.info(f"Writing to Excel: G2={today}, G3={project}, G4={object_name}, E16={user_full_name}, E17={telegram_id_or_username}")
 
 
     row_start_data = 9
@@ -1144,26 +1144,26 @@ def main():
             GLOBAL_DELIVERY_DATE_SELECTION: [
                 CallbackQueryHandler(process_global_calendar_callback, pattern="^(CAL_|EDIT_CAL_)"),
                 CallbackQueryHandler(cancel, pattern="^cancel_dialog$")
-            ],\
-            FINAL_CONFIRMATION: [\
-                CallbackQueryHandler(cancel, pattern="^cancel_dialog$"),\
-                CallbackQueryHandler(final_confirm_handler)\
-            ],\
-        },\
-        fallbacks=[\
-            CommandHandler("cancel", cancel),\
-            CallbackQueryHandler(cancel, pattern="^cancel_dialog$"),\
-            MessageHandler(filters.COMMAND | filters.TEXT, unknown)\
-        ],\
-    )\
-\
-    app.add_handler(conv_handler)\
-\
-    app.add_handler(CommandHandler("start", initial_message_handler))\
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, initial_message_handler))\
-\
-\
-    app.run_polling()\
-\
-if __name__ == "__main__":\
+            ],
+            FINAL_CONFIRMATION: [
+                CallbackQueryHandler(cancel, pattern="^cancel_dialog$"),
+                CallbackQueryHandler(final_confirm_handler)
+            ],
+        },
+        fallbacks=[
+            CommandHandler("cancel", cancel),
+            CallbackQueryHandler(cancel, pattern="^cancel_dialog$"),
+            MessageHandler(filters.COMMAND | filters.TEXT, unknown)
+        ],
+    )
+
+    app.add_handler(conv_handler)
+
+    app.add_handler(CommandHandler("start", initial_message_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, initial_message_handler))
+
+
+    app.run_polling()
+
+if __name__ == "__main__":
     main()
