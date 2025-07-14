@@ -69,16 +69,15 @@ def fill_excel(project, object_name, positions, user_full_name, telegram_id_or_u
     wb = load_workbook(new_path)
     ws = wb.active
 
-       # Столбец I (9-й) — на один столбец правее, чем H
-    col_offset = 9
-    ws.cell(row=2, column=col_offset, value=today)                    # I2
-    ws.cell(row=3, column=col_offset, value=project)                  # I3
-    ws.cell(row=4, column=col_offset, value=object_name)              # I4
-    ws.cell(row=5, column=col_offset, value=user_full_name)           # I5
-    ws.cell(row=6, column=col_offset, value=telegram_id_or_username)  # I6
+   	ws['G2'] = today
+	ws['G3'] = project
+	ws['G4'] = object_name
+	ws['G5'] = user_full_name
+	ws['G6'] = telegram_id_or_username
 
 
-   logger.info(f"Writing to Excel: I2={today}, I3={project}, I4={object_name}, I5={user_full_name}, I6={telegram_id_or_username}")
+
+   logger.info(f"Writing to Excel: G2={today}, G3={project}, G4={object_name}, G5={user_full_name}, G6={telegram_id_or_username}")
 
 
     row_start_data = 9
@@ -438,7 +437,7 @@ async def handle_file_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not current_pos_data.get('link'):
         keyboard.append([InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")])
     
-    keyboard.append([InlineKeyboardButton("Продолжить без вложений", callback_data="no_attachment")])
+    keyboard.append([InlineKeyboardButton("Продолжить", callback_data="no_attachment")])
     keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -469,7 +468,7 @@ async def handle_link_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not current_pos_data.get('file_data'):
         keyboard.append([InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")])
     
-    keyboard.append([InlineKeyboardButton("Продолжить без вложений", callback_data="no_attachment")])
+    keyboard.append([InlineKeyboardButton("Продолжить", callback_data="no_attachment")])
     keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -604,7 +603,7 @@ async def process_selected_position(update: Update, context: ContextTypes.DEFAUL
         return await edit_field_selection_handler(update, context)
     else:
         logger.warning(f"Chat {chat_id}: Unknown action type in process_selected_position - {action_type}")
-        await query.edit_message_text("Неизвестное действие. Пожалуйста, попробуйте снова.",
+        await query.edit_message_text("Неизвестное действие. Пожалуйста, попробуйте снова",
                                       reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Назад в меню", callback_data="back_to_edit_menu")],
                                                                          [InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]]))
         return await edit_menu_handler(update, context)
