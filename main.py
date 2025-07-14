@@ -69,15 +69,15 @@ def fill_excel(project, object_name, positions, user_full_name, telegram_id_or_u
     wb = load_workbook(new_path)
     ws = wb.active
 
-   	ws['G2'] = today
-	ws['G3'] = project
-	ws['G4'] = object_name
-	ws['G5'] = user_full_name
-	ws['G6'] = telegram_id_or_username
+   	ws['H2'] = today
+	ws['H3'] = project
+	ws['H4'] = object_name
+	ws['H5'] = user_full_name
+	ws['H6'] = telegram_id_or_username
 
 
 
-   logger.info(f"Writing to Excel: G2={today}, G3={project}, G4={object_name}, G5={user_full_name}, G6={telegram_id_or_username}")
+   logger.info(f"Writing to Excel: H2={today}, H3={project}, H4={object_name}, H5={user_full_name}, H6={telegram_id_or_username}")
 
 
     row_start_data = 9
@@ -371,7 +371,7 @@ async def process_position_calendar_callback(update: Update, context: ContextTyp
         # и пользователь возвращается в меню редактирования.
         if "current" in user_state[chat_id]:
             del user_state[chat_id]["current"]
-        await query.edit_message_text("Выбор даты для позиции отменен. Вы можете добавить позицию снова или продолжить.")
+        await query.edit_message_text("Выбор даты для позиции отменен. Вы можете добавить позицию снова или продолжить")
         return await edit_menu_handler(update, context) # Вернуться в меню редактирования
 
     return POSITION_DELIVERY_DATE
@@ -537,8 +537,8 @@ async def select_position_handler(update: Update, context: ContextTypes.DEFAULT_
 
     positions = user_state[chat_id].get("positions", [])
     if not positions:
-        await query.edit_message_text("В заявке нет позиций для редактирования или удаления. "
-                                      "Нажмите 'Продолжить' или 'Отмена заявки'.",
+        await query.edit_message_text("В заявке нет позиций для редактирования или удаления "
+                                      "Нажмите 'Продолжить' или 'Отмена заявки'",
                                       reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Продолжить", callback_data="continue_final_confirm")],
                                                                          [InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]]))
         return EDIT_MENU # Возвращаемся в EDIT_MENU
@@ -577,14 +577,14 @@ async def process_selected_position(update: Update, context: ContextTypes.DEFAUL
     try:
         selected_index = int(query.data.split('_')[2])
     except (IndexError, ValueError):
-        await query.edit_message_text("Неверный выбор позиции. Пожалуйста, попробуйте снова.",
+        await query.edit_message_text("Неверный выбор позиции. Пожалуйста, попробуйте снова",
                                       reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Назад в меню", callback_data="back_to_edit_menu")],
                                                                          [InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]]))
         return SELECT_POSITION # Остаемся в SELECT_POSITION
 
     positions = user_state[chat_id].get("positions", [])
     if selected_index < 0 or selected_index >= len(positions):
-        await query.edit_message_text("Выбрана несуществующая позиция. Пожалуйста, выберите номер из списка.",
+        await query.edit_message_text("Выбрана несуществующая позиция. Пожалуйста, выберите номер из списка",
                                       reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Назад в меню", callback_data="back_to_edit_menu")],
                                                                          [InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]]))
         return SELECT_POSITION
@@ -743,7 +743,7 @@ async def edit_field_input_handler(update: Update, context: ContextTypes.DEFAULT
             await update.message.reply_text(f"Файл '{document.file_name}' успешно прикреплен к позиции.")
             return await edit_menu_handler(update, context)
         else:
-            logger.warning(f"Chat {chat_id}: Expected document but received something else for attach_file.")
+            logger.warning(f"Chat {chat_id}: Expected document but received something else for attach_file")
             await update.message.reply_text("Это не похоже на файл-документ. Пожалуйста, отправьте файл (документ).")
             return EDIT_FIELD_INPUT # Остаемся в этом состоянии
     elif editing_field == 'attach_link':
@@ -751,7 +751,7 @@ async def edit_field_input_handler(update: Update, context: ContextTypes.DEFAULT
         if link.startswith("http://") or link.startswith("https://"):
             current_position['link'] = link
             logger.info(f"Chat {chat_id}: Link '{link}' attached to position {editing_position_index}.")
-            await update.message.reply_text(f"Ссылка '{link}' успешно прикреплена к позиции.")
+            await update.message.reply_text(f"Ссылка '{link}' успешно прикреплена к позиции")
             return await edit_menu_handler(update, context)
         else:
             logger.warning(f"Chat {chat_id}: Invalid link format for attach_link - '{link}'")
@@ -793,7 +793,7 @@ async def process_edited_module_selection(update: Update, context: ContextTypes.
     user_state[chat_id]['positions'][editing_position_index]['module'] = selected_module
     logger.info(f"Chat {chat_id}: Position module updated to '{selected_module}' for index {editing_position_index}")
 
-    await query.edit_message_text(f"Модуль обновлен на '{selected_module}'.")
+    await query.edit_message_text(f"Модуль обновлен на '{selected_module}'")
     return await edit_menu_handler(update, context)
 
 
