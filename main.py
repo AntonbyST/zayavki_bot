@@ -72,8 +72,8 @@ def fill_excel(project, object_name, positions, user_full_name, telegram_id_or_u
     ws['G2'] = today
     ws['G3'] = project
     ws['G4'] = object_name
-    ws['G5'] = user_full_name
-    ws['G6'] = telegram_id_or_username
+    ws['E16'] = user_full_name
+    ws['E17'] = telegram_id_or_username
 
     logger.info(f"Writing to Excel: G2={today}, G3={project}, G4={object_name}, G5={user_full_name}, G6={telegram_id_or_username}")
 
@@ -127,9 +127,15 @@ async def send_email(chat_id, project, object_name, positions, user_full_name, t
         if p.get('link'):
             pos_info += f" | Ссылка: {p['link']}"
             links_in_email.append(f"Позиция {i+1} ({p.get('name', 'N/A')}): {p['link']}")
-        if p.get('file_data'):
-            pos_info += f" | Файл: {p['file_data'].get('file_name', 'N/A')}"
-            files_to_attach.append((i+1, p['file_data'])) # Сохраняем индекс позиции для логов
+        
+        # Изменено: Обрабатываем список файлов
+        if p.get('file_data') and isinstance(p['file_data'], list):
+            file_names = []
+            for file_item in p['file_data']:
+                file_names.append(file_item.get('file_name', 'N/A'))
+                files_to_attach.append((i+1, file_item)) # Сохраняем индекс позиции и данные каждого файла
+            if file_names:
+                pos_info += f" | Файлы: {', '.join(file_names)}" # Обновляем текст сводки
         email_body += pos_info + "\n"
 
     if links_in_email:
@@ -255,7 +261,7 @@ async def object_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def name_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обрабатывает наименование позиции и предлагает выбрать единицу измерения."""
-    user_state[update.effective_chat.id]["current"] = {"name": update.message.text}
+    user_state[update.effective_chat.id]["current"] = {"name": update.message.text, "file_data": []} # Инициализируем file_data как список
     logger.info(f"Chat {update.effective_chat.id}: Position name entered - {update.message.text}")
 
     keyboard = [[InlineKeyboardButton(u, callback_data=u)] for u in units]
@@ -415,11 +421,14 @@ async def handle_file_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if update.message.document:
         document = update.message.document
-        user_state[chat_id]["current"]["file_data"] = {
+        # Изменено: Добавляем файл в список file_data
+        if "file_data" not in user_state[chat_id]["current"]:
+            user_state[chat_id]["current"]["file_data"] = []
+        user_state[chat_id]["current"]["file_data"].append({
             'file_id': document.file_id,
             'file_name': document.file_name,
             'mime_type': document.mime_type
-        }
+        })
         logger.info(f"Chat {chat_id}: File '{document.file_name}' attached to current position.")
         await update.message.reply_text(f"Файл '{document.file_name}' успешно прикреплен.")
     else:
@@ -427,15 +436,12 @@ async def handle_file_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Это не похоже на файл-документ. Пожалуйста, отправьте файл (документ).")
         return FILE_INPUT # Stay in state if not a document
 
-    # После прикрепления файла, предлагаем прикрепить ссылку или продолжить
-    keyboard = []
-    current_pos_data = user_state[chat_id]["current"]
-    
-    # Если ссылка еще не прикреплена, предлагаем прикрепить ссылку
-    if not current_pos_data.get('link'):
-        keyboard.append([InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")])
-    
-    keyboard.append([InlineKeyboardButton("Продолжить без вложений", callback_data="no_attachment")])
+    # После прикрепления файла, предлагаем прикрепить еще файл/ссылку или продолжить
+    keyboard = [
+        [InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")], # Всегда доступно для нескольких файлов
+        [InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")],
+        [InlineKeyboardButton("Продолжить", callback_data="no_attachment")]
+    ]
     keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -459,14 +465,11 @@ async def handle_link_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return LINK_INPUT # Stay in state if invalid link
 
     # После прикрепления ссылки, предлагаем прикрепить файл или продолжить
-    keyboard = []
-    current_pos_data = user_state[chat_id]["current"]
-
-    # Если файл еще не прикреплен, предлагаем прикрепить файл
-    if not current_pos_data.get('file_data'):
-        keyboard.append([InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")])
-    
-    keyboard.append([InlineKeyboardButton("Продолжить без вложений", callback_data="no_attachment")])
+    keyboard = [
+        [InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")],
+        [InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")], # Всегда доступно
+        [InlineKeyboardButton("Продолжить", callback_data="no_attachment")]
+    ]
     keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -489,8 +492,11 @@ def get_positions_summary(positions):
         )
         if p.get('link'):
             line += f" | Ссылка: {p['link']}"
-        if p.get('file_data'):
-            line += f" | Файл: {p['file_data'].get('file_name', 'N/A')}"
+        # Изменено: Отображаем список файлов
+        if p.get('file_data') and isinstance(p['file_data'], list):
+            if p['file_data']: # Если список файлов не пуст
+                file_names = [f_data.get('file_name', 'N/A') for f_data in p['file_data']]
+                line += f" | Файлы: {', '.join(file_names)}"
         summary_lines.append(line)
     return "\n".join(summary_lines)
 
@@ -628,8 +634,11 @@ async def edit_field_selection_handler(update: Update, context: ContextTypes.DEF
     )
     if current_pos.get('link'):
         summary_pos += f"Ссылка: {current_pos['link']}\n"
-    if current_pos.get('file_data'):
-        summary_pos += f"Файл: {current_pos['file_data'].get('file_name', 'N/A')}\n"
+    # Изменено: Отображаем все прикрепленные файлы при редактировании
+    if current_pos.get('file_data') and isinstance(current_pos['file_data'], list):
+        if current_pos['file_data']:
+            file_names = [f_data.get('file_name', 'N/A') for f_data in current_pos['file_data']]
+            summary_pos += f"Файлы: {', '.join(file_names)}\n"
     summary_pos += "\n"
 
 
@@ -732,11 +741,14 @@ async def edit_field_input_handler(update: Update, context: ContextTypes.DEFAULT
     elif editing_field == 'attach_file':
         if update.message.document:
             document = update.message.document
-            current_position['file_data'] = {
+            # Изменено: Добавляем файл в список file_data
+            if "file_data" not in current_position:
+                current_position["file_data"] = []
+            current_position["file_data"].append({
                 'file_id': document.file_id,
                 'file_name': document.file_name,
                 'mime_type': document.mime_type
-            }
+            })
             logger.info(f"Chat {chat_id}: File '{document.file_name}' attached to position {editing_position_index}.")
             await update.message.reply_text(f"Файл '{document.file_name}' успешно прикреплен к позиции.")
             return await edit_menu_handler(update, context)
@@ -1132,27 +1144,26 @@ def main():
             GLOBAL_DELIVERY_DATE_SELECTION: [
                 CallbackQueryHandler(process_global_calendar_callback, pattern="^(CAL_|EDIT_CAL_)"),
                 CallbackQueryHandler(cancel, pattern="^cancel_dialog$")
-            ],
-
-            FINAL_CONFIRMATION: [
-                CallbackQueryHandler(cancel, pattern="^cancel_dialog$"),
-                CallbackQueryHandler(final_confirm_handler)
-            ],
-        },
-        fallbacks=[
-            CommandHandler("cancel", cancel),
-            CallbackQueryHandler(cancel, pattern="^cancel_dialog$"),
-            MessageHandler(filters.COMMAND | filters.TEXT, unknown)
-        ],
-    )
-
-    app.add_handler(conv_handler)
-
-    app.add_handler(CommandHandler("start", initial_message_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, initial_message_handler))
-
-
-    app.run_polling()
-
-if __name__ == "__main__":
+            ],\
+            FINAL_CONFIRMATION: [\
+                CallbackQueryHandler(cancel, pattern="^cancel_dialog$"),\
+                CallbackQueryHandler(final_confirm_handler)\
+            ],\
+        },\
+        fallbacks=[\
+            CommandHandler("cancel", cancel),\
+            CallbackQueryHandler(cancel, pattern="^cancel_dialog$"),\
+            MessageHandler(filters.COMMAND | filters.TEXT, unknown)\
+        ],\
+    )\
+\
+    app.add_handler(conv_handler)\
+\
+    app.add_handler(CommandHandler("start", initial_message_handler))\
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, initial_message_handler))\
+\
+\
+    app.run_polling()\
+\
+if __name__ == "__main__":\
     main()
