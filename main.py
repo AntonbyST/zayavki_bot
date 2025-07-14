@@ -385,7 +385,7 @@ async def edit_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     elif choice == "set_global_delivery_date":
         calendar_markup = create_calendar()
         await query.edit_message_text("Выберите общую дату доставки:", reply_markup=calendar_markup)
-        return GLOBAL_DELIVERY_DATE_SELECTION
+        return GLOBAL_DELIVERY_DATE_INPUT # Исправлено: GLOBAL_DELIVERY_DATE_SELECTION -> GLOBAL_DELIVERY_DATE_INPUT
 
     elif choice == "continue_and_send":
         await query.edit_message_text("Вы закончили редактирование. Отправить заявку?", reply_markup=final_confirm_keyboard)
@@ -648,7 +648,7 @@ async def process_global_calendar_callback(update: Update, context: ContextTypes
         new_date = datetime(year, month, 1) - timedelta(days=1)
         calendar_markup = create_calendar(new_date.year, new_date.month)
         await query.edit_message_reply_markup(reply_markup=calendar_markup)
-        return GLOBAL_DELIVERY_DATE_SELECTION
+        return GLOBAL_DELIVERY_DATE_INPUT # Исправлено: GLOBAL_DELIVERY_DATE_SELECTION -> GLOBAL_DELIVERY_DATE_INPUT
     elif data.startswith('CAL_NEXT_MONTH'):
         parts = data.split('_')
         month = int(parts[3])
@@ -656,7 +656,7 @@ async def process_global_calendar_callback(update: Update, context: ContextTypes
         new_date = datetime(year, month, 1) + timedelta(days=31)
         calendar_markup = create_calendar(new_date.year, new_date.month)
         await query.edit_message_reply_markup(reply_markup=calendar_markup)
-        return GLOBAL_DELIVERY_DATE_SELECTION
+        return GLOBAL_DELIVERY_DATE_INPUT # Исправлено: GLOBAL_DELIVERY_DATE_SELECTION -> GLOBAL_DELIVERY_DATE_INPUT
     elif data.startswith('CAL_DATE'):
         date_str = data.split('_')[2]
         selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -666,7 +666,7 @@ async def process_global_calendar_callback(update: Update, context: ContextTypes
         return EDIT_MENU
     else:
         # Это должен быть CAL_IGNORE, ничего не делаем
-        return GLOBAL_DELIVERY_DATE_SELECTION
+        return GLOBAL_DELIVERY_DATE_INPUT # Исправлено: GLOBAL_DELIVERY_DATE_SELECTION -> GLOBAL_DELIVERY_DATE_INPUT
 
 
 async def final_confirm_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -906,7 +906,7 @@ def main() -> None:
                 CallbackQueryHandler(cancel, pattern="^cancel_dialog$")
             ],
 
-            GLOBAL_DELIVERY_DATE_SELECTION: [
+            GLOBAL_DELIVERY_DATE_INPUT: [ # Исправлено: GLOBAL_DELIVERY_DATE_SELECTION -> GLOBAL_DELIVERY_DATE_INPUT
                 CallbackQueryHandler(process_global_calendar_callback, pattern="^(CAL_|EDIT_CAL_)\w*"),
                 CallbackQueryHandler(cancel, pattern="^cancel_dialog$")
             ],
