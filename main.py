@@ -69,13 +69,13 @@ def fill_excel(project, object_name, positions, user_full_name, telegram_id_or_u
     wb = load_workbook(new_path)
     ws = wb.active
 
-    ws['H2'] = today
-    ws['H3'] = project
-    ws['H4'] = object_name
-    ws['H5'] = user_full_name
-    ws['H6'] = telegram_id_or_username
+    ws['G2'] = today
+    ws['G3'] = project
+    ws['G4'] = object_name
+    ws['G5'] = user_full_name
+    ws['G6'] = telegram_id_or_username
 
-    logger.info(f"Writing to Excel: H2={today}, H3={project}, H4={object_name}, H5={user_full_name}, H6={telegram_id_or_username}")
+    logger.info(f"Writing to Excel: G2={today}, G3={project}, G4={object_name}, G5={user_full_name}, G6={telegram_id_or_username}")
 
 
     row_start_data = 9
