@@ -69,13 +69,16 @@ def fill_excel(project, object_name, positions, user_full_name, telegram_id_or_u
     wb = load_workbook(new_path)
     ws = wb.active
 
-    ws['H2'] = today
-    ws['H3'] = project
-    ws['H4'] = object_name
-    ws['H5'] = user_full_name
-    ws['H6'] = telegram_id_or_username
+       # Столбец I (9-й) — на один столбец правее, чем H
+    col_offset = 9
+    ws.cell(row=2, column=col_offset, value=today)                    # I2
+    ws.cell(row=3, column=col_offset, value=project)                  # I3
+    ws.cell(row=4, column=col_offset, value=object_name)              # I4
+    ws.cell(row=5, column=col_offset, value=user_full_name)           # I5
+    ws.cell(row=6, column=col_offset, value=telegram_id_or_username)  # I6
 
-    logger.info(f"Writing to Excel: G2={today}, G3={project}, G4={object_name}, G5={user_full_name}, G6={telegram_id_or_username}")
+
+   logger.info(f"Writing to Excel: I2={today}, I3={project}, I4={object_name}, I5={user_full_name}, I6={telegram_id_or_username}")
 
 
     row_start_data = 9
@@ -355,7 +358,7 @@ async def process_position_calendar_callback(update: Update, context: ContextTyp
         keyboard = [
             [InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")],
             [InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")],
-            [InlineKeyboardButton("Продолжить без вложений", callback_data="no_attachment")]
+            [InlineKeyboardButton("Продолжить", callback_data="no_attachment")]
         ]
         keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -635,7 +638,7 @@ async def edit_field_selection_handler(update: Update, context: ContextTypes.DEF
 
     keyboard = [
         [InlineKeyboardButton("Наименование", callback_data="edit_field_name")],
-        [InlineKeyboardButton("Ед. изм.", callback_data="edit_field_unit")],
+        [InlineKeyboardButton("Ед.изм.", callback_data="edit_field_unit")],
         [InlineKeyboardButton("Количество", callback_data="edit_field_quantity")],
         [InlineKeyboardButton("Модуль", callback_data="edit_field_module")],
         [InlineKeyboardButton("Дата поставки", callback_data="edit_field_delivery_date")],
@@ -977,7 +980,7 @@ async def final_confirm_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 context=context # Передаем context для скачивания файлов позиций
             )
             if email_sent:
-                await query.edit_message_text("Заявка успешно отправлена на почту!")
+                await query.edit_message_text("Заявка успешно отправлена на почту в отдел снабжения!")
             else:
                 await query.edit_message_text("Заявка отправлена, но возникли проблемы при отправке письма. Пожалуйста, проверьте логи.")
 
@@ -996,7 +999,7 @@ async def final_confirm_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
         return ConversationHandler.END
     else: # query.data == "final_no"
-        await query.edit_message_text("Отправка заявки отменена.")
+        await query.edit_message_text("Отправка заявки отменена")
         keyboard = [[KeyboardButton("Создать заявку")]]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False, resize_keyboard=True)
         await context.bot.send_message(chat_id=chat_id, text="Для создания новой заявки:", reply_markup=reply_markup)
