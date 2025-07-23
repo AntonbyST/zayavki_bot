@@ -35,7 +35,6 @@ EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")
 TEMPLATE_PATH = "template.xlsx" # Убедитесь, что template.xlsx существует в той же директории
 
 # Состояния для ConversationHandler
-# Обновлено количество состояний до 19
 PROJECT, OBJECT, NAME, UNIT, QUANTITY, MODULE, POSITION_DELIVERY_DATE, \
 ATTACHMENT_CHOICE, FILE_INPUT, LINK_INPUT, \
 CONFIRM_ADD_MORE, \
@@ -56,7 +55,6 @@ def fill_excel(project, object_name, positions, user_full_name, telegram_id_or_u
     а также информацию о пользователе, от которого пришла заявка.
     """
     today = datetime.today().strftime("%d.%m.%Y")
-    # Изменено: Добавлено user_full_name в имя файла, заменены пробелы на подчеркивания
     sanitized_user_name = user_full_name.replace(" ", "_")
     filename = f"Заявка_{project}_{object_name}_{sanitized_user_name}_{datetime.today().strftime('%Y-%m-%d')}.xlsx"
     output_dir = "out"
@@ -87,9 +85,9 @@ def fill_excel(project, object_name, positions, user_full_name, telegram_id_or_u
         ws.cell(row=row, column=2).value = pos["name"]
         ws.cell(row=row, column=3).value = pos["unit"]
         ws.cell(row=row, column=4).value = pos["quantity"]
-        ws.cell(row=row, column=5).value = pos.get("delivery_date", "Не указано") # Дата из позиции
+        ws.cell(row=row, column=5).value = pos.get("delivery_date", "Не указано")
         ws.cell(row=row, column=6).value = pos["module"]
-        ws.cell(row=row, column=7).value = pos.get("link", "") # Добавлено поле для ссылки в Excel
+        ws.cell(row=row, column=7).value = pos.get("link", "")
         logger.info(f"Writing position {i+1} to Excel: {pos}")
 
 
@@ -115,7 +113,6 @@ async def send_email(chat_id, project, object_name, positions, user_full_name, t
     email_body += f"Telegram ID: {telegram_id_or_username}\n\n"
     email_body += "Позиции:\n"
 
-    # Списки для файлов и ссылок, которые будут прикреплены к письму
     files_to_attach = []
     links_in_email = []
 
@@ -129,14 +126,13 @@ async def send_email(chat_id, project, object_name, positions, user_full_name, t
             pos_info += f" | Ссылка: {p['link']}"
             links_in_email.append(f"Позиция {i+1} ({p.get('name', 'N/A')}): {p['link']}")
 
-        # Изменено: Обрабатываем список файлов
         if p.get('file_data') and isinstance(p['file_data'], list):
             file_names = []
             for file_item in p['file_data']:
                 file_names.append(file_item.get('file_name', 'N/A'))
-                files_to_attach.append((i+1, file_item)) # Сохраняем индекс позиции и данные каждого файла
+                files_to_attach.append((i+1, file_item))
             if file_names:
-                pos_info += f" | Файлы: {', '.join(file_names)}" # Обновляем текст сводки
+                pos_info += f" | Файлы: {', '.join(file_names)}"
         email_body += pos_info + "\n"
 
     if links_in_email:
@@ -158,7 +154,6 @@ async def send_email(chat_id, project, object_name, positions, user_full_name, t
     except Exception as e:
         logger.error(f"Ошибка при создании или прикреплении Excel файла: {e}")
 
-    # Прикрепление файлов, связанных с позициями
     if context:
         for pos_index, file_data in files_to_attach:
             try:
@@ -173,7 +168,7 @@ async def send_email(chat_id, project, object_name, positions, user_full_name, t
                     file_bytes,
                     maintype=mime_type.split('/')[0],
                     subtype=mime_type.split('/')[1],
-                    filename=f"Позиция_{pos_index}_{file_name}", # Уникальное имя файла
+                    filename=f"Позиция_{pos_index}_{file_name}",
                 )
                 logger.info(f"Дополнительный файл '{file_name}' для позиции {pos_index} прикреплен к письму")
             except Exception as e:
@@ -224,7 +219,7 @@ async def start_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "telegram_id_or_username": telegram_id_or_username,
         "project": None,
         "object": None,
-        "positions": [], # Позиции теперь могут содержать 'link' и 'file_data'
+        "positions": [],
     }
     logger.info(f"User {user_full_name} ({telegram_id_or_username}) started conversation.")
 
@@ -262,7 +257,7 @@ async def object_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def name_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обрабатывает наименование позиции и предлагает выбрать единицу измерения."""
-    user_state[update.effective_chat.id]["current"] = {"name": update.message.text, "file_data": []} # Инициализируем file_data как список
+    user_state[update.effective_chat.id]["current"] = {"name": update.message.text, "file_data": []}
     logger.info(f"Chat {update.effective_chat.id}: Position name entered - {update.message.text}")
 
     keyboard = [[InlineKeyboardButton(u, callback_data=u)] for u in units]
@@ -314,12 +309,10 @@ async def module_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     chat_id = query.message.chat.id
-    user_state[chat_id]["current"]["module"] = query.data # Сохраняем модуль
+    user_state[chat_id]["current"]["module"] = query.data
     logger.info(f"Chat {chat_id}: Module selected - {query.data}. Requesting delivery date for this position.")
 
-    # Переходим к выбору даты поставки для текущей позиции
     current_date = date.today()
-    # Используем префикс "POS_CAL_" для колбэков календаря позиций
     reply_markup = create_calendar_keyboard(current_date.year, current_date.month, prefix="POS_CAL_")
     await query.edit_message_text("Выберите желаемую дату поставки для этой позиции:", reply_markup=reply_markup)
     return POSITION_DELIVERY_DATE
@@ -334,12 +327,11 @@ async def process_position_calendar_callback(update: Update, context: ContextTyp
     data = query.data
     chat_id = query.message.chat.id
 
-    if data.startswith("POS_CAL_NAV_"): # Обработка навигации
+    if data.startswith("POS_CAL_NAV_"):
         parts = data.split('_')
         year = int(parts[3])
         month = int(parts[4])
 
-        # Корректировка месяца и года
         if month > 12:
             month = 1
             year += 1
@@ -351,14 +343,12 @@ async def process_position_calendar_callback(update: Update, context: ContextTyp
         await query.edit_message_text("Выберите желаемую дату поставки для этой позиции:", reply_markup=reply_markup)
         return POSITION_DELIVERY_DATE
 
-    elif data.startswith("POS_CAL_DATE_"): # Обработка выбора даты
+    elif data.startswith("POS_CAL_DATE_"):
         selected_date_str = data.replace("POS_CAL_DATE_", "")
 
-        # Сохраняем дату в текущей позиции, но еще не добавляем в список позиций
         user_state[chat_id]["current"]["delivery_date"] = selected_date_str
         logger.info(f"Chat {chat_id}: Position delivery date selected - {selected_date_str}. Now asking about attachments.")
 
-        # Предлагаем варианты прикрепления
         keyboard = [
             [InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")],
             [InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")],
@@ -367,17 +357,14 @@ async def process_position_calendar_callback(update: Update, context: ContextTyp
         keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("Теперь вы можете прикрепить файл или ссылку к этой позиции:", reply_markup=reply_markup)
-        return ATTACHMENT_CHOICE # Переход в новое состояние
+        return ATTACHMENT_CHOICE
 
     elif data == "POS_CAL_CANCEL":
         logger.info(f"Chat {chat_id}: Position calendar date selection cancelled.")
-        # Если пользователь отменяет выбор даты для позиции,
-        # текущая неполная позиция должна быть удалена,
-        # и пользователь возвращается в меню редактирования.
         if "current" in user_state[chat_id]:
             del user_state[chat_id]["current"]
         await query.edit_message_text("Выбор даты для позиции отменен. Вы можете добавить позицию снова или продолжить.")
-        return await edit_menu_handler(update, context) # Вернуться в меню редактирования
+        return await edit_menu_handler(update, context)
 
     return POSITION_DELIVERY_DATE
 
@@ -399,10 +386,9 @@ async def attachment_choice_handler(update: Update, context: ContextTypes.DEFAUL
                                       reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]]))
         return LINK_INPUT
     elif data == "no_attachment":
-        # Добавляем текущую позицию в список позиций, т.к. вложений не будет
         user_state[chat_id]["positions"].append(user_state[chat_id]["current"])
         logger.info(f"Chat {chat_id}: Position added without attachments: {user_state[chat_id]['current']}")
-        del user_state[chat_id]["current"] # Очищаем current после добавления
+        del user_state[chat_id]["current"]
 
         keyboard = [
             [InlineKeyboardButton("Да", callback_data="yes"), InlineKeyboardButton("Нет", callback_data="no")]
@@ -412,7 +398,7 @@ async def attachment_choice_handler(update: Update, context: ContextTypes.DEFAUL
         return CONFIRM_ADD_MORE
     else:
         await query.edit_message_text("Неизвестный выбор.")
-        return ATTACHMENT_CHOICE # Stay in state
+        return ATTACHMENT_CHOICE
 
 async def handle_file_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -422,7 +408,6 @@ async def handle_file_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if update.message.document:
         document = update.message.document
-        # Изменено: Добавляем файл в список file_data
         if "file_data" not in user_state[chat_id]["current"]:
             user_state[chat_id]["current"]["file_data"] = []
         user_state[chat_id]["current"]["file_data"].append({
@@ -435,11 +420,10 @@ async def handle_file_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         logger.warning(f"Chat {chat_id}: Expected document but received something else for file input.")
         await update.message.reply_text("Это не похоже на файл-документ. Пожалуйста, отправьте файл (документ).")
-        return FILE_INPUT # Stay in state if not a document
+        return FILE_INPUT
 
-    # После прикрепления файла, предлагаем прикрепить еще файл/ссылку или продолжить
     keyboard = [
-        [InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")], # Всегда доступно для нескольких файлов
+        [InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")],
         [InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")],
         [InlineKeyboardButton("Продолжить", callback_data="no_attachment")]
     ]
@@ -463,12 +447,11 @@ async def handle_link_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         logger.warning(f"Chat {chat_id}: Invalid link format for link input - '{link}'")
         await update.message.reply_text("Пожалуйста, введите корректную ссылку, начинающуюся с http:// или https://.")
-        return LINK_INPUT # Stay in state if invalid link
+        return LINK_INPUT
 
-    # После прикрепления ссылки, предлагаем прикрепить файл или продолжить
     keyboard = [
         [InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")],
-        [InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")], # Всегда доступно
+        [InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")],
         [InlineKeyboardButton("Продолжить", callback_data="no_attachment")]
     ]
     keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
@@ -493,9 +476,8 @@ def get_positions_summary(positions):
         )
         if p.get('link'):
             line += f" | Ссылка: {p['link']}"
-        # Изменено: Отображаем список файлов
         if p.get('file_data') and isinstance(p['file_data'], list):
-            if p['file_data']: # Если список файлов не пуст
+            if p['file_data']:
                 file_names = [f_data.get('file_name', 'N/A') for f_data in p['file_data']]
                 line += f" | Файлы: {', '.join(file_names)}"
         summary_lines.append(line)
@@ -546,7 +528,7 @@ async def select_position_handler(update: Update, context: ContextTypes.DEFAULT_
                                       "Нажмите 'Продолжить' или 'Отмена заявки'.",
                                       reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Продолжить", callback_data="continue_final_confirm")],
                                                                          [InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]]))
-        return EDIT_MENU # Возвращаемся в EDIT_MENU
+        return EDIT_MENU
 
     keyboard = []
     buttons_per_row = 5
@@ -585,7 +567,7 @@ async def process_selected_position(update: Update, context: ContextTypes.DEFAUL
         await query.edit_message_text("Неверный выбор позиции. Пожалуйста, попробуйте снова.",
                                       reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Назад в меню", callback_data="back_to_edit_menu")],
                                                                          [InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]]))
-        return SELECT_POSITION # Остаемся в SELECT_POSITION
+        return SELECT_POSITION
 
     positions = user_state[chat_id].get("positions", [])
     if selected_index < 0 or selected_index >= len(positions):
@@ -635,7 +617,6 @@ async def edit_field_selection_handler(update: Update, context: ContextTypes.DEF
     )
     if current_pos.get('link'):
         summary_pos += f"Ссылка: {current_pos['link']}\n"
-    # Изменено: Отображаем все прикрепленные файлы при редактировании
     if current_pos.get('file_data') and isinstance(current_pos['file_data'], list):
         if current_pos['file_data']:
             file_names = [f_data.get('file_name', 'N/A') for f_data in current_pos['file_data']]
@@ -649,7 +630,6 @@ async def edit_field_selection_handler(update: Update, context: ContextTypes.DEF
         [InlineKeyboardButton("Количество", callback_data="edit_field_quantity")],
         [InlineKeyboardButton("Модуль", callback_data="edit_field_module")],
         [InlineKeyboardButton("Дата поставки", callback_data="edit_field_delivery_date")],
-        # Новые кнопки для прикрепления/изменения ссылки и файла к позиции
         [InlineKeyboardButton("Прикрепить/Изменить файл", callback_data="edit_field_attach_file")],
         [InlineKeyboardButton("Прикрепить/Изменить ссылку", callback_data="edit_field_attach_link")],
         [InlineKeyboardButton("Назад в меню", callback_data="back_to_edit_menu")],
@@ -667,7 +647,6 @@ async def edit_field_selection_handler(update: Update, context: ContextTypes.DEF
 async def edit_field_input_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Принимает новое значение для выбранного поля и обновляет позицию.
-    Обрабатывает текстовый ввод, файлы и перенаправляет на выбор кнопками для ед.изм. и модуля, даты.
     """
     chat_id = update.effective_chat.id
     current_state_data = user_state[chat_id]
@@ -689,7 +668,7 @@ async def edit_field_input_handler(update: Update, context: ContextTypes.DEFAULT
             keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text("Выберите новую единицу измерения:", reply_markup=reply_markup)
-            return EDITING_UNIT # Новое состояние
+            return EDITING_UNIT
         elif editing_field == 'module':
             buttons_per_row = 5
             keyboard = []
@@ -702,14 +681,14 @@ async def edit_field_input_handler(update: Update, context: ContextTypes.DEFAULT
             keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text("Выберите новый модуль:", reply_markup=reply_markup)
-            return EDITING_MODULE # Новое состояние
+            return EDITING_MODULE
         elif editing_field == 'attach_file':
             await query.edit_message_text("Пожалуйста, **отправьте мне файл** (как документ) для этой позиции.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]]))
-            return EDIT_FIELD_INPUT # Ждем файл
+            return EDIT_FIELD_INPUT
         elif editing_field == 'attach_link':
             await query.edit_message_text("Пожалуйста, **введите ссылку** для этой позиции.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]]))
-            return EDIT_FIELD_INPUT # Ждем ссылку
-        else: # name or quantity
+            return EDIT_FIELD_INPUT
+        else:
             field_name_ru = {
                 'name': 'наименование',
                 'quantity': 'количество',
@@ -717,7 +696,6 @@ async def edit_field_input_handler(update: Update, context: ContextTypes.DEFAULT
             await query.edit_message_text(f"Введите новое {field_name_ru}:")
             return EDIT_FIELD_INPUT
 
-    # Обработка ввода (текст или файл)
     editing_position_index = current_state_data['editing_position_index']
     editing_field = current_state_data['editing_field']
     current_position = current_state_data['positions'][editing_position_index]
@@ -742,7 +720,6 @@ async def edit_field_input_handler(update: Update, context: ContextTypes.DEFAULT
     elif editing_field == 'attach_file':
         if update.message.document:
             document = update.message.document
-            # Изменено: Добавляем файл в список file_data
             if "file_data" not in current_position:
                 current_position["file_data"] = []
             current_position["file_data"].append({
@@ -756,7 +733,7 @@ async def edit_field_input_handler(update: Update, context: ContextTypes.DEFAULT
         else:
             logger.warning(f"Chat {chat_id}: Expected document but received something else for attach_file.")
             await update.message.reply_text("Это не похоже на файл-документ. Пожалуйста, отправьте файл (документ).")
-            return EDIT_FIELD_INPUT # Остаемся в этом состоянии
+            return EDIT_FIELD_INPUT
     elif editing_field == 'attach_link':
         link = update.message.text.strip()
         if link.startswith("http://") or link.startswith("https://"):
@@ -767,11 +744,11 @@ async def edit_field_input_handler(update: Update, context: ContextTypes.DEFAULT
         else:
             logger.warning(f"Chat {chat_id}: Invalid link format for attach_link - '{link}'")
             await update.message.reply_text("Пожалуйста, введите корректную ссылку, начинающуюся с http:// или https://.")
-            return EDIT_FIELD_INPUT # Остаемся в этом состоянии
+            return EDIT_FIELD_INPUT
     else:
         logger.warning(f"Chat {chat_id}: Unexpected field or input type in edit_field_input_handler: field={editing_field}, update.message={update.message}")
         await update.message.reply_text("Произошла неизвестная ошибка при редактировании. Пожалуйста, попробуйте снова.")
-        return await edit_menu_handler(update, context) # Вернуться в меню редактирования
+        return await edit_menu_handler(update, context)
 
 async def process_edited_unit_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -830,11 +807,8 @@ async def confirm_add_more_handler(update: Update, context: ContextTypes.DEFAULT
 def create_calendar_keyboard(year, month, prefix="CAL_"):
     """
     Генерирует Inline-клавиатуру для выбора даты.
-    `prefix` используется для создания уникальных callback_data,
-    например, "CAL_" для глобального выбора даты и "POS_CAL_" для даты позиции.
     """
     keyboard = []
-    # Ряд 1: Навигация по месяцам и годам
     keyboard.append([
         InlineKeyboardButton("<<", callback_data=f"{prefix}NAV_{year-1}_{month}"),
         InlineKeyboardButton("<", callback_data=f"{prefix}NAV_{year}_{month-1 if month > 1 else 12}"),
@@ -843,11 +817,9 @@ def create_calendar_keyboard(year, month, prefix="CAL_"):
         InlineKeyboardButton(">>", callback_data=f"{prefix}NAV_{year+1}_{month}")
     ])
 
-    # Ряд 2: Заголовки дней недели
     weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
     keyboard.append([InlineKeyboardButton(day, callback_data="ignore") for day in weekdays])
 
-    # Дни календаря
     cal = calendar.Calendar()
     for week in cal.monthdayscalendar(year, month):
         row = []
@@ -860,27 +832,9 @@ def create_calendar_keyboard(year, month, prefix="CAL_"):
         keyboard.append(row)
 
     keyboard.append([InlineKeyboardButton("Отмена выбора даты", callback_data=f"{prefix}CANCEL")])
-    keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]) # Добавлена общая кнопка отмены
+    keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
 
     return InlineKeyboardMarkup(keyboard)
-
-
-async def request_global_delivery_date_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Запрашивает глобальную дату поставки (если все позиции имеют одну дату).
-    В текущей логике это может быть использовано для редактирования даты позиции,
-    но это требует дополнительной адаптации.
-    """
-    current_date = date.today()
-    reply_markup = create_calendar_keyboard(current_date.year, current_date.month, prefix="CAL_")
-
-    if update.callback_query:
-        await update.callback_query.answer()
-        await update.callback_query.edit_message_text("Выберите желаемую общую дату поставки (если применимо):", reply_markup=reply_markup)
-    else:
-        await update.message.reply_text("Выберите желаемую общую дату поставки (если применимо):", reply_markup=reply_markup)
-
-    return GLOBAL_DELIVERY_DATE_SELECTION # Новое состояние
 
 async def process_global_calendar_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -897,7 +851,7 @@ async def process_global_calendar_callback(update: Update, context: ContextTypes
         parts = data.split('_')
         year = int(parts[2]) if data.startswith("CAL_NAV_") else int(parts[3])
         month = int(parts[3]) if data.startswith("CAL_NAV_") else int(parts[4])
-        prefix = "CAL_" if data.startswith("CAL_NAV_") else "EDIT_CAL_" # Определяем префикс
+        prefix = "CAL_" if data.startswith("CAL_NAV_") else "EDIT_CAL_"
 
         if month > 12:
             month = 1
@@ -908,33 +862,28 @@ async def process_global_calendar_callback(update: Update, context: ContextTypes
 
         reply_markup = create_calendar_keyboard(year, month, prefix=prefix)
         await query.edit_message_text("Выберите дату:", reply_markup=reply_markup)
-        return GLOBAL_DELIVERY_DATE_SELECTION # Остаемся в этом состоянии
+        return GLOBAL_DELIVERY_DATE_SELECTION
 
     elif data.startswith("CAL_DATE_") or data.startswith("EDIT_CAL_DATE_"):
         selected_date_str = data.replace("CAL_DATE_", "").replace("EDIT_CAL_DATE_", "")
 
         if user_state[chat_id].get('editing_field') == 'delivery_date':
-            # Если это редактирование даты для конкретной позиции
             editing_position_index = user_state[chat_id]['editing_position_index']
             user_state[chat_id]['positions'][editing_position_index]['delivery_date'] = selected_date_str
             logger.info(f"Chat {chat_id}: Position {editing_position_index} delivery date updated to {selected_date_str}")
             await query.edit_message_text(f"Дата поставки обновлена на {selected_date_str}.")
-            # После редактирования возвращаемся в меню редактирования позиций
             return await edit_menu_handler(update, context)
         else:
-            # Эта ветка, возможно, не будет достигнута при текущей логике, т.к. глобальная дата не используется.
             pass
 
-        # После выбора даты всегда возвращаемся в меню редактирования
         return await edit_menu_handler(update, context)
 
     elif data == "CAL_CANCEL" or data == "EDIT_CAL_CANCEL":
         logger.info(f"Chat {chat_id}: Calendar date selection cancelled.")
         await query.edit_message_text("Выбор даты отменен")
-        # После отмены выбора даты, возвращаемся в меню редактирования
         return await edit_menu_handler(update, context)
 
-    return GLOBAL_DELIVERY_DATE_SELECTION # Остаемся в этом состоянии
+    return GLOBAL_DELIVERY_DATE_SELECTION
 
 # --- ФИНАЛЬНОЕ ПОДТВЕРЖДЕНИЕ И ОТПРАВКА ---
 
@@ -987,7 +936,7 @@ async def final_confirm_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 state["positions"],
                 state.get("user_full_name", "Неизвестно"),
                 state.get("telegram_id_or_username", "Неизвестно"),
-                context=context # Передаем context для скачивания файлов позиций
+                context=context
             )
             if email_sent:
                 await query.edit_message_text("Заявка успешно отправлена на почту в отдел снабжения!")
@@ -1008,7 +957,7 @@ async def final_confirm_handler(update: Update, context: ContextTypes.DEFAULT_TY
             await context.bot.send_message(chat_id=chat_id, text="Для создания новой заявки:", reply_markup=reply_markup)
 
         return ConversationHandler.END
-    else: # query.data == "final_no"
+    else:
         await query.edit_message_text("Отправка заявки отменена")
         keyboard = [[KeyboardButton("Создать заявку")]]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False, resize_keyboard=True)
@@ -1021,26 +970,21 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Отменяет текущий разговор и очищает состояние пользователя."""
     chat_id = update.effective_chat.id
 
-    # Сначала отправляем сообщение об отмене и убираем любую ReplyKeyboard, если она есть
     await context.bot.send_message(chat_id=chat_id, text='Диалог отменён', reply_markup=ReplyKeyboardRemove())
 
-    # Если это CallbackQuery, отвечаем на него и пытаемся удалить inline-клавиатуру из предыдущего сообщения
     if update.callback_query:
         query = update.callback_query
-        await query.answer() # Отвечаем на запрос, чтобы убрать "часы" на кнопке
+        await query.answer()
         try:
-            # Пытаемся удалить инлайн-клавиатуру, если она присутствует в сообщении
             if query.message and query.message.reply_markup and query.message.reply_markup.inline_keyboard:
                 await query.edit_message_reply_markup(reply_markup=None)
         except Exception as e:
             logger.warning(f"Failed to edit message to remove inline keyboard after cancel: {e}")
 
-    # После всего, отправляем новую кнопку "Создать заявку"
     keyboard = [[KeyboardButton("Создать заявку")]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=False, resize_keyboard=True)
     await context.bot.send_message(chat_id=chat_id, text="Для создания новой заявки:", reply_markup=reply_markup)
 
-    # Очищаем состояние пользователя
     if chat_id in user_state:
         del user_state[chat_id]
         logger.info(f"Chat {chat_id} state cleared after cancel.")
@@ -1059,12 +1003,9 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.answer("Неизвестное действие.")
         await context.bot.send_message(chat_id=chat_id, text=".", reply_markup=reply_markup)
 
-
 async def main():
     """Основная функция для запуска бота."""
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    # Удаляем вебхук, чтобы избежать конфликта с поллингом
     await app.bot.delete_webhook()
 
     conv_handler = ConversationHandler(
@@ -1098,7 +1039,6 @@ async def main():
                 CallbackQueryHandler(process_position_calendar_callback, pattern="^POS_CAL_"),
                 CallbackQueryHandler(cancel, pattern="^cancel_dialog$")
             ],
-            # Новые состояния для прикрепления вложений
             ATTACHMENT_CHOICE: [
                 CallbackQueryHandler(attachment_choice_handler, pattern="^(attach_file|attach_link|no_attachment)$"),
                 CallbackQueryHandler(cancel, pattern="^cancel_dialog$")
@@ -1146,7 +1086,7 @@ async def main():
             ],
 
             GLOBAL_DELIVERY_DATE_SELECTION: [
-                CallbackQueryHandler(process_global_calendar_callback, pattern="^(CAL_|EDIT_CAL_)\d+_\d+$"), # Уточнили паттерн
+                CallbackQueryHandler(process_global_calendar_callback, pattern="^(CAL_|EDIT_CAL_)\d+_\\d+"),
                 CallbackQueryHandler(process_global_calendar_callback, pattern="^(CAL_|EDIT_CAL_)"),
                 CallbackQueryHandler(cancel, pattern="^cancel_dialog$")
             ],
@@ -1163,7 +1103,6 @@ async def main():
     )
 
     app.add_handler(conv_handler)
-
     app.add_handler(CommandHandler("start", initial_message_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, initial_message_handler))
 
