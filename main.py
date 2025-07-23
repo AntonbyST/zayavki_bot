@@ -1110,10 +1110,11 @@ async def main():
 
 if __name__ == "__main__":
     try:
+        # Проверяем, запущен ли уже цикл событий
+        loop = asyncio.get_running_loop()
+        print("Event loop is already running, using existing loop.")
+        loop.create_task(main())
+    except RuntimeError:
+        # Если цикл не запущен, запускаем новый
+        print("No event loop is running, starting a new one.")
         asyncio.run(main())
-    except RuntimeError as e:
-        if "cannot close a running event loop" in str(e):
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(main())
-        else:
-            raise e
