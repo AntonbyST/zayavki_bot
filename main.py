@@ -114,7 +114,7 @@ async def send_email(chat_id, project, object_name, positions, user_full_name, t
     email_body += f"От кого: {user_full_name}\n"
     email_body += f"Telegram ID: {telegram_id_or_username}\n\n"
     email_body += "Позиции:\n"
-    
+
     # Списки для файлов и ссылок, которые будут прикреплены к письму
     files_to_attach = []
     links_in_email = []
@@ -128,7 +128,7 @@ async def send_email(chat_id, project, object_name, positions, user_full_name, t
         if p.get('link'):
             pos_info += f" | Ссылка: {p['link']}"
             links_in_email.append(f"Позиция {i+1} ({p.get('name', 'N/A')}): {p['link']}")
-        
+
         # Изменено: Обрабатываем список файлов
         if p.get('file_data') and isinstance(p['file_data'], list):
             file_names = []
@@ -419,7 +419,7 @@ async def handle_file_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Обрабатывает получение файла и сохраняет его данные в текущую позицию.
     """
     chat_id = update.effective_chat.id
-    
+
     if update.message.document:
         document = update.message.document
         # Изменено: Добавляем файл в список file_data
@@ -1020,7 +1020,7 @@ async def final_confirm_handler(update: Update, context: ContextTypes.DEFAULT_TY
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Отменяет текущий разговор и очищает состояние пользователя."""
     chat_id = update.effective_chat.id
-    
+
     # Сначала отправляем сообщение об отмене и убираем любую ReplyKeyboard, если она есть
     await context.bot.send_message(chat_id=chat_id, text='Диалог отменён', reply_markup=ReplyKeyboardRemove())
 
@@ -1044,7 +1044,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_id in user_state:
         del user_state[chat_id]
         logger.info(f"Chat {chat_id} state cleared after cancel.")
-        
+
     return ConversationHandler.END
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1063,7 +1063,7 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def main():
     """Основная функция для запуска бота."""
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    
+
     # Удаляем вебхук, чтобы избежать конфликта с поллингом
     await app.bot.delete_webhook()
 
@@ -1146,6 +1146,7 @@ async def main():
             ],
 
             GLOBAL_DELIVERY_DATE_SELECTION: [
+                CallbackQueryHandler(process_global_calendar_callback, pattern="^(CAL_|EDIT_CAL_)\d+_\d+$"), # Уточнили паттерн
                 CallbackQueryHandler(process_global_calendar_callback, pattern="^(CAL_|EDIT_CAL_)"),
                 CallbackQueryHandler(cancel, pattern="^cancel_dialog$")
             ],
@@ -1166,8 +1167,14 @@ async def main():
     app.add_handler(CommandHandler("start", initial_message_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, initial_message_handler))
 
-
     await app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "cannot close a running event loop" in str(e):
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(main())
+        else:
+            raise e
