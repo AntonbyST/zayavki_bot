@@ -34,13 +34,13 @@ EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")
 TEMPLATE_PATH = "template.xlsx" # Убедитесь, что template.xlsx существует в той же директории
 
 # Состояния для ConversationHandler
-# Обновлено количество состояний до 19
+# Обновлено количество состояний до 20
 PROJECT, OBJECT, NAME, UNIT, QUANTITY, MODULE, POSITION_DELIVERY_DATE, \
 ATTACHMENT_CHOICE, FILE_INPUT, LINK_INPUT, \
 CONFIRM_ADD_MORE, \
 EDIT_MENU, SELECT_POSITION, EDIT_FIELD_SELECTION, EDIT_FIELD_INPUT, \
 FINAL_CONFIRMATION, GLOBAL_DELIVERY_DATE_SELECTION, \
-EDITING_UNIT, EDITING_MODULE = range(19)
+EDITING_UNIT, EDITING_MODULE, SUGGESTION_SELECTION = range(20) # NEW STATE ADDED
 
 # Глобальные переменные для хранения данных пользователя и предварительно определенных списков
 user_state = {}
@@ -48,6 +48,20 @@ projects = ["Stadler", "Мотели"]
 objects = ["Мерке", "Аральск", "Атырау", "Каркаролинск", "Семипалатинск"]
 modules = [f"{i+1}" for i in range(18)]
 units = ["м2", "м3", "шт", "компл", "л", "кг", "тн"]
+
+# Добавление списка материалов для подсказок
+materials = [
+    "Арматура", "Бетон", "Цемент", "Кирпич", "Песок", "Щебень", "Доска", "Фанера",
+    "Гипсокартон", "Профиль", "Саморез", "Дрель", "Молоток", "Рулетка", "Уровень",
+    "Краска", "Шпаклевка", "Грунтовка", "Плитка", "Клей для плитки", "Затирка",
+    "Провод", "Кабель", "Розетка", "Выключатель", "Лампочка", "Светильник",
+    "Труба водопроводная", "Фитинг", "Кран", "Раковина", "Унитаз", "Душевая кабина",
+    "Дверь", "Окно", "Замок", "Петли", "Ручка дверная",
+    "Утеплитель", "Пароизоляция", "Гидроизоляция", "Кровля", "Металлочерепица",
+    "Битумная мастика", "Гвозди", "Болты", "Гайки", "Шайбы",
+    "Электродрель", "Перфоратор", "Угловая шлифмашина", "Сварочный аппарат"
+]
+
 
 def fill_excel(project, object_name, positions, user_full_name, telegram_id_or_username):
     """
@@ -224,6 +238,7 @@ async def start_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "project": None,
         "object": None,
         "positions": [], # Позиции теперь могут содержать 'link' и 'file_data'
+        "current": {} # Инициализация для текущей позиции
     }
     logger.info(f"User {user_full_name} ({telegram_id_or_username}) started conversation.")
 
@@ -256,225 +271,165 @@ async def object_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_state[query.message.chat.id]["object"] = query.data
     logger.info(f"Chat {query.message.chat.id}: Object selected - {query.data}")
+    # Убедимся, что 'current' для новой позиции инициализируется
+    user_state[query.message.chat.id]["current"] = {"file_data": []} # Инициализируем file_data как список
     await query.edit_message_text("Введите наименование позиции:")
     return NAME
 
 async def name_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обрабатывает наименование позиции и предлагает выбрать единицу измерения."""
-    user_state[update.effective_chat.id]["current"] = {"name": update.message.text, "file_data": []} # Инициализируем file_data как список
-    logger.info(f"Chat {update.effective_chat.id}: Position name entered - {update.message.text}")
-
-    keyboard = [[InlineKeyboardButton(u, callback_data=u)] for u in units]
-    keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Выберите единицу измерения:", reply_markup=reply_markup)
-    return UNIT
-
-async def unit_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обрабатывает выбор единицы измерения и запрашивает количество."""
-    query = update.callback_query
-    await query.answer()
-
-    user_state[query.message.chat.id]["current"]["unit"] = query.data
-    logger.info(f"Chat {query.message.chat.id}: Unit selected - {query.data}")
-    await query.edit_message_text("Введите количество:")
-    return QUANTITY
-
-async def quantity_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обрабатывает количество и предлагает выбрать модуль. Добавлена базовая валидация."""
+    """
+    Обрабатывает наименование позиции, предлагает выбор единицы измерения
+    и теперь предоставляет подсказки по наименованию.
+    """
     chat_id = update.effective_chat.id
-    try:
-        quantity = float(update.message.text)
-        user_state[chat_id]["current"]["quantity"] = quantity
-        logger.info(f"Chat {chat_id}: Quantity entered - {quantity}")
-    except ValueError:
-        logger.warning(f"Chat {chat_id}: Invalid quantity format - '{update.message.text}'")
-        await update.message.reply_text("Неверный формат количества. Пожалуйста, введите число (например, 5 или 3.5):")
-        return QUANTITY
+    input_text = update.message.text.strip()
 
-    buttons_per_row = 5
-    keyboard = []
-    current_row = []
-    for i, m in enumerate(modules):
-        current_row.append(InlineKeyboardButton(m, callback_data=m))
-        if (i + 1) % buttons_per_row == 0 or (i + 1) == len(modules):
-            keyboard.append(current_row)
-            current_row = []
-    keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("К какому модулю относится позиция?", reply_markup=reply_markup)
-    return MODULE
+    # Убедимся, что 'current' и 'file_data' для текущей позиции инициализированы
+    if "current" not in user_state[chat_id] or not isinstance(user_state[chat_id]["current"], dict):
+        user_state[chat_id]["current"] = {}
+    if "file_data" not in user_state[chat_id]["current"]:
+        user_state[chat_id]["current"]["file_data"] = []
 
-async def module_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обрабатывает выбор модуля и переходит к выбору даты поставки для текущей позиции.
-    """
-    query = update.callback_query
-    await query.answer()
+    # Сохраняем ввод временно для подсказок
+    user_state[chat_id]["current"]["temp_name"] = input_text
 
-    chat_id = query.message.chat.id
-    user_state[chat_id]["current"]["module"] = query.data # Сохраняем модуль
-    logger.info(f"Chat {chat_id}: Module selected - {query.data}. Requesting delivery date for this position.")
+    # Генерируем подсказки
+    suggestions = [
+        material for material in materials
+        if input_text.lower() in material.lower()
+    ]
+    suggestions = suggestions[:5] # Ограничиваем до 5 лучших подсказок
 
-    # Переходим к выбору даты поставки для текущей позиции
-    current_date = date.today()
-    # Используем префикс "POS_CAL_" для колбэков календаря позиций
-    reply_markup = create_calendar_keyboard(current_date.year, current_date.month, prefix="POS_CAL_")
-    await query.edit_message_text("Выберите желаемую дату поставки для этой позиции:", reply_markup=reply_markup)
-    return POSITION_DELIVERY_DATE
-
-async def process_position_calendar_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обрабатывает нажатия на кнопки календаря для выбора даты поставки отдельной позиции.
-    """
-    query = update.callback_query
-    await query.answer()
-
-    data = query.data
-    chat_id = query.message.chat.id
-
-    if data.startswith("POS_CAL_NAV_"): # Обработка навигации
-        parts = data.split('_')
-        year = int(parts[3])
-        month = int(parts[4])
-
-        # Корректировка месяца и года
-        if month > 12:
-            month = 1
-            year += 1
-        elif month < 1:
-            month = 12
-            year -= 1
-
-        reply_markup = create_calendar_keyboard(year, month, prefix="POS_CAL_")
-        await query.edit_message_text("Выберите желаемую дату поставки для этой позиции:", reply_markup=reply_markup)
-        return POSITION_DELIVERY_DATE
-
-    elif data.startswith("POS_CAL_DATE_"): # Обработка выбора даты
-        selected_date_str = data.replace("POS_CAL_DATE_", "")
-
-        # Сохраняем дату в текущей позиции, но еще не добавляем в список позиций
-        user_state[chat_id]["current"]["delivery_date"] = selected_date_str
-        logger.info(f"Chat {chat_id}: Position delivery date selected - {selected_date_str}. Now asking about attachments.")
-
-        # Предлагаем варианты прикрепления
-        keyboard = [
-            [InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")],
-            [InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")],
-            [InlineKeyboardButton("Продолжить", callback_data="no_attachment")]
-        ]
+    if suggestions:
+        keyboard = []
+        for s in suggestions:
+            keyboard.append([InlineKeyboardButton(s, callback_data=f"suggest_{s}")])
+        
+        # Добавляем опцию использовать введенное наименование напрямую
+        keyboard.append([InlineKeyboardButton("Использовать введенное наименование", callback_data="use_typed_name")])
         keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text("Теперь вы можете прикрепить файл или ссылку к этой позиции:", reply_markup=reply_markup)
-        return ATTACHMENT_CHOICE # Переход в новое состояние
+        
+        await update.message.reply_text("Возможно, вы имели в виду одно из следующих наименований? Или продолжайте ввод:", reply_markup=reply_markup)
+        return SUGGESTION_SELECTION # Переход в новое состояние для обработки подсказок
+    else:
+        # Подсказок нет, или пользователь ввел что-то уникальное
+        user_state[chat_id]["current"]["name"] = input_text # Назначаем имя напрямую
+        logger.info(f"Chat {chat_id}: Position name entered - {input_text} (no suggestions).")
 
-    elif data == "POS_CAL_CANCEL":
-        logger.info(f"Chat {chat_id}: Position calendar date selection cancelled.")
-        # Если пользователь отменяет выбор даты для позиции,
-        # текущая неполная позиция должна быть удалена,
-        # и пользователь возвращается в меню редактирования.
-        if "current" in user_state[chat_id]:
-            del user_state[chat_id]["current"]
-        await query.edit_message_text("Выбор даты для позиции отменен. Вы можете добавить позицию снова или продолжить.")
-        return await edit_menu_handler(update, context) # Вернуться в меню редактирования
+        keyboard = [[InlineKeyboardButton(u, callback_data=u)] for u in units]
+        keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("Выберите единицу измерения:", reply_markup=reply_markup)
+        return UNIT
 
-    return POSITION_DELIVERY_DATE
-
-async def attachment_choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def suggestion_selection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Обрабатывает выбор пользователя по прикреплению файла, ссылки или продолжению без вложений.
+    Обрабатывает нажатия на кнопки-подсказки в состоянии SUGGESTION_SELECTION.
     """
     query = update.callback_query
-    await query.answer()
+    await query.answer() # Подтверждаем колбэк
+
     chat_id = query.message.chat.id
     data = query.data
 
-    if data == "attach_file":
-        await query.edit_message_text("Пожалуйста, **отправьте мне файл** (как документ) для этой позиции.",
-                                      reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]]))
-        return FILE_INPUT
-    elif data == "attach_link":
-        await query.edit_message_text("Пожалуйста, **введите ссылку** для этой позиции.",
-                                      reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]]))
-        return LINK_INPUT
-    elif data == "no_attachment":
-        # Добавляем текущую позицию в список позиций, т.к. вложений не будет
-        user_state[chat_id]["positions"].append(user_state[chat_id]["current"])
-        logger.info(f"Chat {chat_id}: Position added without attachments: {user_state[chat_id]['current']}")
-        del user_state[chat_id]["current"] # Очищаем current после добавления
+    # Удаляем клавиатуру подсказок из предыдущего сообщения, если возможно
+    try:
+        await query.edit_message_reply_markup(reply_markup=None)
+    except Exception as e:
+        logger.warning(f"Failed to edit message to remove inline keyboard after suggestion selection: {e}")
 
-        keyboard = [
-            [InlineKeyboardButton("Да", callback_data="yes"), InlineKeyboardButton("Нет", callback_data="no")]
-        ]
+    # Убедимся, что 'current' и 'file_data' для текущей позиции инициализированы
+    if "current" not in user_state[chat_id] or not isinstance(user_state[chat_id]["current"], dict):
+        user_state[chat_id]["current"] = {}
+    if "file_data" not in user_state[chat_id]["current"]:
+        user_state[chat_id]["current"]["file_data"] = []
+
+    if data.startswith("suggest_"):
+        selected_name = data.replace("suggest_", "")
+        user_state[chat_id]["current"]["name"] = selected_name # Назначаем выбранное имя
+        if "temp_name" in user_state[chat_id]["current"]:
+            del user_state[chat_id]["current"]["temp_name"] # Очищаем временное имя
+        
+        logger.info(f"Chat {chat_id}: Suggestion selected - {selected_name}")
+        await context.bot.send_message(chat_id=chat_id, text=f"Наименование установлено: {selected_name}")
+        
+        keyboard = [[InlineKeyboardButton(u, callback_data=u)] for u in units]
+        keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text("Позиция добавлена. Добавить ещё позицию?", reply_markup=reply_markup)
-        return CONFIRM_ADD_MORE
-    else:
-        await query.edit_message_text("Неизвестный выбор.")
-        return ATTACHMENT_CHOICE # Stay in state
+        await context.bot.send_message(chat_id=chat_id, text="Выберите единицу измерения:", reply_markup=reply_markup)
+        return UNIT
 
-async def handle_file_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    elif data == "use_typed_name":
+        if "temp_name" in user_state[chat_id]["current"]:
+            typed_name = user_state[chat_id]["current"]["temp_name"]
+            user_state[chat_id]["current"]["name"] = typed_name # Используем введенное имя
+            if "temp_name" in user_state[chat_id]["current"]:
+                del user_state[chat_id]["current"]["temp_name"] # Очищаем временное имя
+
+            logger.info(f"Chat {chat_id}: Using typed name - {typed_name}")
+            await context.bot.send_message(chat_id=chat_id, text=f"Используется наименование: {typed_name}")
+            
+            keyboard = [[InlineKeyboardButton(u, callback_data=u)] for u in units]
+            keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await context.bot.send_message(chat_id=chat_id, text="Выберите единицу измерения:", reply_markup=reply_markup)
+            return UNIT
+        else:
+            logger.error(f"Chat {chat_id}: 'use_typed_name' callback but no 'temp_name' found.")
+            await context.bot.send_message(chat_id=chat_id, text="Произошла ошибка. Пожалуйста, попробуйте ввести наименование снова.")
+            return NAME # Возвращаемся в состояние NAME для повторного ввода
+
+    return SUGGESTION_SELECTION # На всякий случай, если что-то пошло не так
+
+async def re_enter_name_from_suggestion(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Обрабатывает получение файла и сохраняет его данные в текущую позицию.
-    """
-    chat_id = update.effective_chat.id
-    
-    if update.message.document:
-        document = update.message.document
-        # Изменено: Добавляем файл в список file_data
-        if "file_data" not in user_state[chat_id]["current"]:
-            user_state[chat_id]["current"]["file_data"] = []
-        user_state[chat_id]["current"]["file_data"].append({
-            'file_id': document.file_id,
-            'file_name': document.file_name,
-            'mime_type': document.mime_type
-        })
-        logger.info(f"Chat {chat_id}: File '{document.file_name}' attached to current position.")
-        await update.message.reply_text(f"Файл '{document.file_name}' успешно прикреплен.")
-    else:
-        logger.warning(f"Chat {chat_id}: Expected document but received something else for file input.")
-        await update.message.reply_text("Это не похоже на файл-документ. Пожалуйста, отправьте файл (документ).")
-        return FILE_INPUT # Stay in state if not a document
-
-    # После прикрепления файла, предлагаем прикрепить еще файл/ссылку или продолжить
-    keyboard = [
-        [InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")], # Всегда доступно для нескольких файлов
-        [InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")],
-        [InlineKeyboardButton("Продолжить", callback_data="no_attachment")]
-    ]
-    keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await update.message.reply_text("Что дальше?", reply_markup=reply_markup)
-    return ATTACHMENT_CHOICE
-
-async def handle_link_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обрабатывает получение ссылки и сохраняет ее в текущую позицию.
+    Обрабатывает новый текстовый ввод, когда пользователь находится в состоянии SUGGESTION_SELECTION
+    (т.е., он проигнорировал подсказки и ввел что-то новое).
+    Эффективно перезапускает логику name_handler.
     """
     chat_id = update.effective_chat.id
-    link = update.message.text.strip()
+    input_text = update.message.text.strip()
 
-    if link.startswith("http://") or link.startswith("https://"):
-        user_state[chat_id]["current"]["link"] = link
-        logger.info(f"Chat {chat_id}: Link '{link}' attached to current position.")
-        await update.message.reply_text(f"Ссылка '{link}' успешно прикреплена.")
-    else:
-        logger.warning(f"Chat {chat_id}: Invalid link format for link input - '{link}'")
-        await update.message.reply_text("Пожалуйста, введите корректную ссылку, начинающуюся с http:// или https://.")
-        return LINK_INPUT # Stay in state if invalid link
+    # Убедимся, что 'current' и 'file_data' для текущей позиции инициализированы
+    if "current" not in user_state[chat_id] or not isinstance(user_state[chat_id]["current"], dict):
+        user_state[chat_id]["current"] = {}
+    if "file_data" not in user_state[chat_id]["current"]:
+        user_state[chat_id]["current"]["file_data"] = []
 
-    # После прикрепления ссылки, предлагаем прикрепить файл или продолжить
-    keyboard = [
-        [InlineKeyboardButton("Прикрепить файл", callback_data="attach_file")],
-        [InlineKeyboardButton("Прикрепить ссылку", callback_data="attach_link")], # Всегда доступно
-        [InlineKeyboardButton("Продолжить", callback_data="no_attachment")]
+    # Сохраняем новый ввод временно
+    user_state[chat_id]["current"]["temp_name"] = input_text
+
+    suggestions = [
+        material for material in materials
+        if input_text.lower() in material.lower()
     ]
-    keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    suggestions = suggestions[:5]
 
-    await update.message.reply_text("Что дальше?", reply_markup=reply_markup)
-    return ATTACHMENT_CHOICE
+    if suggestions:
+        keyboard = []
+        for s in suggestions:
+            keyboard.append([InlineKeyboardButton(s, callback_data=f"suggest_{s}")])
+        
+        keyboard.append([InlineKeyboardButton("Использовать введенное наименование", callback_data="use_typed_name")])
+        keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text("Возможно, вы имели в виду одно из следующих наименований? Или продолжайте ввод:", reply_markup=reply_markup)
+        return SUGGESTION_SELECTION # Остаемся в этом состоянии
+    else:
+        # Подсказок нет для нового ввода
+        user_state[chat_id]["current"]["name"] = input_text # Назначаем имя напрямую
+        if "temp_name" in user_state[chat_id]["current"]:
+            del user_state[chat_id]["current"]["temp_name"] # Очищаем временное имя
+
+        logger.info(f"Chat {chat_id}: Position name entered - {input_text} (no new suggestions).")
+
+        keyboard = [[InlineKeyboardButton(u, callback_data=u)] for u in units]
+        keyboard.append([InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("Выберите единицу измерения:", reply_markup=reply_markup)
+        return UNIT
 
 
 # --- ОБРАБОТЧИКИ ДЛЯ РЕДАКТИРОВАНИЯ ---
@@ -818,6 +773,7 @@ async def confirm_add_more_handler(update: Update, context: ContextTypes.DEFAULT
 
     if query.data == "yes":
         logger.info(f"Chat {chat_id}: User wants to add more positions.")
+        user_state[chat_id]["current"] = {"file_data": []} # Инициализируем для новой позиции
         await query.edit_message_text("Введите наименование позиции:")
         return NAME
     else:
@@ -1076,6 +1032,11 @@ def main():
             ],
             NAME: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, name_handler),
+                CallbackQueryHandler(cancel, pattern="^cancel_dialog$")
+            ],
+            SUGGESTION_SELECTION: [ # New State for suggestion handling
+                CallbackQueryHandler(suggestion_selection_handler, pattern="^(suggest_|use_typed_name$)"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, re_enter_name_from_suggestion), # To handle more typing
                 CallbackQueryHandler(cancel, pattern="^cancel_dialog$")
             ],
             UNIT: [
