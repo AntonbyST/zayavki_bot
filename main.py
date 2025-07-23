@@ -1110,10 +1110,8 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
-    except RuntimeError as e:
-        if "cannot close a running event loop" in str(e):
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(main())
-        else:
-            raise e
+        asyncio.get_event_loop().run_until_complete(main())
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(main())
