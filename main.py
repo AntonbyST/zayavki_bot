@@ -1108,13 +1108,10 @@ async def main():
 
     await app.run_polling()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
+    import asyncio
+
     try:
-        # Проверяем, запущен ли уже цикл событий
-        loop = asyncio.get_running_loop()
-        print("Event loop is already running, using existing loop.")
-        loop.create_task(main())
-    except RuntimeError:
-        # Если цикл не запущен, запускаем новый
-        print("No event loop is running, starting a new one.")
-        asyncio.run(main())
+        asyncio.get_event_loop().run_until_complete(main())
+    except Exception as e:
+        raise e
