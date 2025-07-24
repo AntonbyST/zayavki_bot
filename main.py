@@ -47,7 +47,7 @@ user_state = {}
 projects = ["Stadler", "Мотели"]
 objects = ["Мерке", "Аральск", "Атырау", "Каркаролинск", "Семипалатинск"]
 modules = [f"{i+1}" for i in range(18)]
-units = ["м2", "м3", "шт", "компл", "л", "кг", "тн"]
+units = ["м", "м2", "м3", "шт", "компл", "л", "кг", "тн"]
 
 def fill_excel(project, object_name, positions, user_full_name, telegram_id_or_username):
     """
