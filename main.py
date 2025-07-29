@@ -47,9 +47,13 @@ ATTACHMENT_CHOICE, FILE_INPUT, LINK_INPUT, \
 CONFIRM_ADD_MORE, \
 EDIT_MENU, SELECT_POSITION, EDIT_FIELD_SELECTION, EDIT_FIELD_INPUT, \
 FINAL_CONFIRMATION, GLOBAL_DELIVERY_DATE_SELECTION, \
+<<<<<<< HEAD
 EDITING_UNIT, EDITING_MODULE, SPECIALIST_SELECTION = range(20) # Изменили range на 20
 # === КОНЕЦ ИЗМЕНЕНИЙ ===
 
+=======
+EDITING_UNIT, EDITING_MODULE , SELECT_SPECIALIST= range(19)
+>>>>>>> 973de4f (v 1.01 dвыбор снабженца)
 
 # Глобальные переменные для хранения данных пользователя и предварительно определенных списков
 user_state = {}
@@ -984,6 +988,7 @@ async def main() -> None:
                 CallbackQueryHandler(cancel, pattern="^cancel_dialog$"),
                 CallbackQueryHandler(final_confirm_handler) # Этот handler теперь ведет на SPECIALIST_SELECTION
             ],
+<<<<<<< HEAD
             # === НАЧАЛО ИЗМЕНЕНИЙ ===
             SPECIALIST_SELECTION: [
                 CallbackQueryHandler(specialist_selection_handler, pattern="^specialist_"),
@@ -991,6 +996,10 @@ async def main() -> None:
             ],
             # === КОНЕЦ ИЗМЕНЕНИЙ ===
         },
+=======
+        
+        SELECT_SPECIALIST: [CallbackQueryHandler(select_specialist, pattern=\"^specialist_\")],},
+>>>>>>> 973de4f (v 1.01 dвыбор снабженца)
         fallbacks=[
             CommandHandler("cancel", cancel),
             CallbackQueryHandler(cancel, pattern="^cancel_dialog$"),
@@ -1008,6 +1017,7 @@ async def main() -> None:
 
 if __name__ == "__main__":
     try:
+<<<<<<< HEAD
         # Проверяем, запущен ли уже цикл событий
         loop = asyncio.get_running_loop()
         print("Event loop is already running, using existing loop.")
@@ -1016,3 +1026,30 @@ if __name__ == "__main__":
         # Если цикл не запущен, запускаем новый
         print("No event loop is running, starting a new one.")
         asyncio.run(main())
+=======
+        loop.run_until_complete(main())
+    except Exception as e:
+        raise e
+
+
+
+async def select_specialist(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    selected = query.data
+    context.user_data["recipient"] = "bas2@vds.by" if selected == "specialist_dmitry" else "bas@vds.by"
+    context.user_data["cc"] = "bas@vds.by"
+
+    await query.edit_message_text("Заявка направляется...")
+
+    send_email(
+        to=context.user_data["recipient"],
+        cc=context.user_data["cc"],
+        subject="Заявка",
+        attachment_path=context.user_data["excel_path"],
+    )
+
+    await query.message.reply_text("✅ Заявка успешно отправлена.")
+    return ConversationHandler.END
+>>>>>>> 973de4f (v 1.01 dвыбор снабженца)
