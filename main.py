@@ -600,6 +600,7 @@ async def specialist_selection_handler(update: Update, context: ContextTypes.DEF
     specialist_choice = query.data
 
     to_email = ""
+    specialist_name = ""
     if specialist_choice == "specialist_alesya":
         to_email = SPECIALIST_EMAIL_ALESYA
         specialist_name = "Алесе Забавской"
@@ -607,12 +608,14 @@ async def specialist_selection_handler(update: Update, context: ContextTypes.DEF
         to_email = SPECIALIST_EMAIL_DMITRY
         specialist_name = "Дмитрию Карпу"
     else:
+        keyboard = [
+            [InlineKeyboardButton("Алеся Забавская", callback_data="specialist_alesya")],
+            [InlineKeyboardButton("Дмитрий Карп", callback_data="specialist_dmitry")],
+            [InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("Неверный выбор специалиста. Пожалуйста, попробуйте снова.",
-                                      reply_markup=InlineKeyboardMarkup([
-                                          [InlineKeyboardButton("Алеся Забавская", callback_data="specialist_alesya")],
-                                          [InlineKeyboardButton("Дмитрий Карп", callback_data="specialist_dmitry")],
-                                          [InlineKeyboardButton("Отмена заявки", callback_data="cancel_dialog")]
-                                      ]))
+                                      reply_markup=reply_markup)
         return SPECIALIST_SELECTION
 
     data = user_state[chat_id]
@@ -622,13 +625,15 @@ async def specialist_selection_handler(update: Update, context: ContextTypes.DEF
     user_full_name = data["user_full_name"]
     telegram_id_or_username = data["telegram_id_or_username"]
 
+    reply_to_user_markup = ReplyKeyboardMarkup([["Создать заявку"]], one_time_keyboard=False, resize_keyboard=True)
+
     try:
         await send_email(chat_id, project, object_name, positions, user_full_name, telegram_id_or_username, to_email, CC_EMAIL, context)
-        await query.edit_message_text(f"Заявка успешно отправлена {specialist_name}!")
+        await query.edit_message_text(f"Заявка успешно отправлена {specialist_name}!", reply_markup=reply_to_user_markup)
         logger.info(f"Chat {chat_id}: Application successfully sent to {to_email} with CC {CC_EMAIL}.")
     except Exception as e:
         logger.error(f"Chat {chat_id}: Error sending email: {e}")
-        await query.edit_message_text(f"Произошла ошибка при отправке заявки. Пожалуйста, попробуйте еще раз. Ошибка: {e}")
+        await query.edit_message_text(f"Произошла ошибка при отправке заявки. Пожалуйста, попробуйте еще раз. Ошибка: {e}", reply_markup=reply_to_user_markup)
 
     # Очищаем состояние пользователя после завершения заявки
     if chat_id in user_state:
